@@ -1,0 +1,10 @@
+*.log
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+build/
+*.exe
+*.dll
+*.so
+*.dylib
