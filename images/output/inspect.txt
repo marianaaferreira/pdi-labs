@@ -1,0 +1,8 @@
+Largura: 256
+Altura: 256
+Canais: 1
+Tipo: 0
+Quantidade de pixels: 65536
+Minimo: 40
+Maximo: 220
+Media: 130
