@@ -8,8 +8,8 @@
 namespace pdi {
 namespace {
 
-constexpr std::array<std::string_view, 7> parameter_names {
-    "value", "levels", "threshold", "alpha", "kernel", "border", "size"
+constexpr std::array<std::string_view, 9> parameter_names {
+    "value", "levels", "threshold", "alpha", "kernel", "border", "size", "method", "invert"
 };
 
 bool is_known_parameter(std::string_view name)

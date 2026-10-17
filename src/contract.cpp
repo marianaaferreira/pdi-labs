@@ -57,6 +57,55 @@ ValidationResult validate_typed_parameters(const CliOptions& options)
             }
         }
 
+        if (options.operation == "segment") {
+        auto required = require_parameter(options, "method");
+        if (!required) return required;
+
+        const auto& method = options.parameters.at("method");
+
+        if (method != "fixed" && method != "otsu") {
+            return {
+                ExitCode::invalid_parameter,
+                "Metodo de segmentacao desconhecido: " + method +
+                ". Use fixed ou otsu"
+            };
+        }
+
+            if (method == "fixed") {
+                required = require_parameter(options, "threshold");
+                if (!required) return required;
+
+                const int threshold =
+                    parameter_as_int(options, "threshold");
+
+                if (threshold < 0 || threshold > 255) {
+                    return {
+                        ExitCode::invalid_parameter,
+                        "--threshold deve estar entre 0 e 255."
+                    };
+                }
+
+            } else if (method == "otsu") {
+                if (has_parameter(options, "threshold")) {
+                    return {
+                        ExitCode::invalid_parameter,
+                        "--threshold aplica-se apenas ao metodo fixed; "
+                        "o metodo selecionado calcula o limiar."
+                    };
+                }
+            }
+            if (has_parameter(options, "invert")) {
+                const auto& invert = options.parameters.at("invert");
+
+                if (invert != "true" && invert != "false") {
+                    return {
+                        ExitCode::invalid_parameter,
+                        "--invert deve ser true ou false."
+                    };
+                }
+            }
+        }
+
         if (options.operation == "convolution") {
             auto required = require_parameter(options, "kernel");
             if (!required) return required;
