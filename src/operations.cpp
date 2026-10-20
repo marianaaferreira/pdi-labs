@@ -151,35 +151,35 @@ cv::Mat segment_otsu(const cv::Mat& input_image, bool invert, double& selected_t
         background_pixels += qt[t];
         background_sum += t * static_cast<double>(qt[t]);
 
-        const std::uint64_t foreground_pixels =
-            total_pixels - background_pixels;
+        const std::uint64_t foreground_pixels = total_pixels - background_pixels;
 
-        if (background_pixels == 0 || foreground_pixels == 0) {
-            continue;
-        }
+        if (background_pixels == 0 || foreground_pixels == 0) continue;
 
-        const double background_mean =
-            background_sum / background_pixels;
-
-        const double foreground_mean =
-            (total_sum - background_sum) / foreground_pixels;
-
-        const double difference =
-            background_mean - foreground_mean;
-
-        const double variance =
-            static_cast<double>(background_pixels) *
-            foreground_pixels * difference * difference;
+        const double background_mean = background_sum / background_pixels;
+        const double foreground_mean = (total_sum - background_sum) / foreground_pixels;
+        const double difference = background_mean - foreground_mean;
+        const double variance = static_cast<double>(background_pixels) * foreground_pixels * difference * difference;
 
         if (variance > max_variance) {
             max_variance = variance;
             best_threshold = t;
         }
     }
-
     selected_threshold = best_threshold;
-
     return threshold(gray_image, best_threshold, invert);
+}
+
+void validate_binary_mask(const cv::Mat& input_image, const cv::Mat& mask){
+    if (mask.rows != input_image.rows || mask.cols != input_image.cols || mask.type() != CV_8UC1)
+        throw PdiError(ExitCode::general_error, "A mascara de segmentacao deve ter as dimensoes da entrada e ser CV_8UC1.");
+
+    for (int y = 0; y < mask.rows; ++y) {
+        for (int x = 0; x < mask.cols; ++x) {
+            const uchar value = mask.at<uchar>(y, x);
+            if (value != 0 && value != 255)
+                throw PdiError( ExitCode::general_error, "A mascara de segmentacao deve conter somente 0 e 255.");
+        }
+    }
 }
 
 ExitCode run_operation(const CliOptions& options)
@@ -226,6 +226,7 @@ ExitCode run_operation(const CliOptions& options)
         } else {
             return ExitCode::invalid_parameter;
         }
+        validate_binary_mask(input_image, output_image);
         pdi::write_image(output_path, output_image);
         return ExitCode::success;
     }

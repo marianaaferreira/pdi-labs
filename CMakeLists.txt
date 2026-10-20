@@ -85,12 +85,17 @@ if(BUILD_TESTING)
     target_link_libraries(pdi_infrastructure_test PRIVATE pdi::core)
     add_test(NAME pdi_infrastructure_test COMMAND pdi_infrastructure_test)
 
+    add_executable(pdi_segmentation_test tests/segmentation_test.cpp)
+    target_link_libraries(pdi_segmentation_test PRIVATE pdi::core)
+    add_test(NAME pdi_segmentation_test COMMAND pdi_segmentation_test)
+
     # Os testes usam caminhos relativos para as imagens-base. Definir a pasta
     # do projeto como working directory torna o comportamento igual entre os
     # diferentes diretórios de build gerados pelos presets.
     set_tests_properties(
         pdi_smoke_test
         pdi_infrastructure_test
+        pdi_segmentation_test
         PROPERTIES WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
     )
 endif()

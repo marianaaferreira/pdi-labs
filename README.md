@@ -1,8 +1,6 @@
-# Projeto-base C++ — Laboratórios M1
+# Laboratorio M2.1
 
-Esta variante utiliza C++20, CMake, Ninja e OpenCV. O objetivo do projeto-base é deixar pronta a infraestrutura geral e permitir que o estudante concentre seu tempo nos algoritmos solicitados nos roteiros.
-
-As operações avaliadas permanecem como **stubs**: a interface existe, mas o algoritmo ainda não foi implementado.
+Este projeto implementa a operação `segment` para gerar máscaras binárias de imagens de moedas, comparando dois métodos de limiarização em tons de cinza: limiar fixo (fixed) e limiar automático de Otsu (otsu). A saída é uma imagem PNG de um canal, com o mesmo tamanho da entrada e valores somente 0 (fundo) e 255 (primeiro plano).
 
 ## 1. O que cada arquivo de construção faz
 
@@ -16,8 +14,6 @@ As operações avaliadas permanecem como **stubs**: a interface existe, mas o al
 - como localizar o OpenCV;
 - como construir o executável `pdi_lab`;
 - como construir e registrar os testes públicos.
-
-Você normalmente **não precisa alterar esse arquivo para implementar um laboratório**. Se criar novos arquivos `.cpp`, será necessário adicioná-los à lista de fontes correspondente.
 
 ### `CMakePresets.json`
 
@@ -52,8 +48,6 @@ ctest --preset ucrt64-debug
 ./build/ucrt64-debug/pdi_lab.exe --help
 ./build/ucrt64-debug/pdi_lab.exe --version
 ```
-
-Se todos os testes públicos passarem antes de você começar a implementar o laboratório, a infraestrutura básica está funcionando.
 
 ## 3. OpenCV portátil
 
@@ -107,12 +101,57 @@ flowchart LR
     OP --> OUT[saida]
 ```
 
-## 6. Onde implementar
+## 6. Compilar e testar
 
-Comece em `src/operations.cpp`. Você pode criar funções, classes e arquivos adicionais para organizar melhor o código.
+Na raiz do repositório, configure, compile e execute os testes com o preset Unix:
 
-Não concentre a solução em `main.cpp`. O `main` existe para coordenar a execução; os algoritmos devem permanecer separados da infraestrutura geral.
+```bash
+cmake --preset unix-debug
+cmake --build --preset unix-debug
+ctest --preset unix-debug
+```
 
-## 7. Regra didática principal
+O executável resultante é `build/unix-debug/pdi_lab`.
 
-A infraestrutura pronta pode cuidar de argumentos, arquivos, mensagens e erros gerais. O código desenvolvido para o laboratório continua responsável pelo conteúdo de Processamento de Imagens: percorrer pixels ou vizinhanças, realizar os cálculos solicitados, tratar corretamente os valores produzidos e gerar resultados coerentes.
+## 7. Executar a segmentação localmente
+
+Execute os comandos a partir da raiz do repositório. Os caminhos de entrada e saída são relativos a essa pasta; as imagens fornecidas estão em `images/input/` e os resultados ficam em `images/output/`.
+
+Limiar fixo na imagem fácil:
+
+```bash
+./build/unix-debug/pdi_lab --operation segment \
+  --input images/input/moeda-facil.png \
+  --output images/output/fixed-facil.png \
+  --method fixed --threshold 240
+```
+
+Limiar de Otsu na imagem difícil:
+
+```bash
+./build/unix-debug/pdi_lab --operation segment \
+  --input images/input/moeda-dificil.png \
+  --output images/output/otsu-dificil.png \
+  --method otsu
+```
+
+## 8. Parâmetros da operação
+
+| Parâmetro | Uso |
+|---|---|
+| `--operation segment` | Seleciona a operação de segmentação. |
+| `--input <arquivo>` | Imagem de entrada de 8 bits por canal, com 1, 3 ou 4 canais. |
+| `--output <arquivo>` | Caminho do arquivo da máscara. Prefira PNG, que não introduz perdas. |
+| `--method fixed` | Aplica limiar fixo em uma versão em tons de cinza da imagem. Exige `--threshold`. |
+| `--method otsu` | Calcula automaticamente o limiar pelo histograma em tons de cinza. Não use `--threshold`. |
+| `--threshold <0..255>` | Limiar inteiro obrigatório para `fixed`; aceito entre 0 e 255. |
+| `--invert true\|false` | Inverte a seleção do primeiro plano. O padrão é `false`. |
+
+## 9. Imagens e resultados
+
+- `images/input/moeda-facil.png`: moedas em condições favoráveis;
+- `images/input/moeda-dificil.png`: moedas em uma cena com variação de fundo e iluminação;
+- `images/output/`: destino das máscaras geradas.
+
+Compare a imagem original e as máscaras produzidas pelos dois métodos.
+Observe falsos positivos (fundo incluído) e falsos negativos (partes das moedas omitidas) para decidir qual configuração é mais adequada. Os comandos e as observações dos resultados deste experimento também estão registrados em [`REPORT.md`](REPORT.md).
