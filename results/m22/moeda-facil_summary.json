@@ -1,0 +1,11 @@
+{
+  "stage": "initial",
+  "selected_connectivity": 8,
+  "min_area": 0,
+  "foreground_area_pixels": 67430,
+  "filtered_area_pixels": 67430,
+  "components_connectivity_4_raw": 51,
+  "components_connectivity_4_kept": 51,
+  "components_connectivity_8_raw": 26,
+  "components_connectivity_8_kept": 26
+}

@@ -106,6 +106,16 @@ ValidationResult validate_typed_parameters(const CliOptions& options)
             }
         }
 
+        if (options.operation == "analyze") {
+            if (has_parameter(options, "connectivity")) {
+                const int connectivity = parameter_as_int(options, "connectivity");
+                if (connectivity != 4 && connectivity != 8)
+                    return {ExitCode::invalid_parameter, "--connectivity deve ser 4 ou 8."};
+            }
+            if (has_parameter(options, "min-area") && parameter_as_int(options, "min-area") < 0)
+                return {ExitCode::invalid_parameter, "--min-area deve ser um inteiro nao negativo."};
+        }
+
         if (options.operation == "convolution") {
             auto required = require_parameter(options, "kernel");
             if (!required) return required;

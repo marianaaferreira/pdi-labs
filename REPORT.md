@@ -62,7 +62,50 @@ A configuração selecionada para o M2.2 será o fixed, pois apresentou resultad
 Na imagem difícil, as variações de iluminação, as sombras e as texturas podem fazer com que partes das moedas sejam classificadas como fundo ou que regiões da mão sejam incluídas na máscara.
 O método de Otsu calcula o limiar automaticamente com base no histograma, mas isso não garante uma segmentação correta em imagens nas quais os objetos e o fundo apresentam intensidades semelhantes.
 
-## 7. Referencias
+## 7. M2.2 — Análise inicial de componentes
+
+### 7.1 Escopo realizado
+
+Foi acrescentada ao mesmo executável `pdi_lab` a operação `analyze`, mantendo a operação `segment` da M2.1. Nesta etapa, `analyze` recebe uma máscara de 8 bits, com um canal e valores binários (objeto 255, fundo 0), rotula os componentes com conectividade 4 e 8 e exporta os atributos dos componentes da conectividade selecionada.
+
+O CSV inicial contém `label`, `area`, `x`, `y`, `width`, `height`, `cx`, `cy` e `kept`. O rótulo de fundo (0) é excluído. O resumo JSON registra as contagens filtradas nas duas conectividades, a conectividade selecionada e as áreas de primeiro plano e filtrada. `--connectivity` aceita 4 ou 8 e, por padrão, usa 8. `--min-area` é um inteiro não negativo, com padrão 0; o componente continua no CSV, mas `kept` indica se sua área atinge o mínimo. Não foi aplicado filtro nas imagens abaixo (`--min-area 0`).
+
+### 7.2 Execução e resultados iniciais
+
+```bash
+./build/unix-debug/pdi_lab --operation segment \
+  --input images/input/moeda-facil.png \
+  --output images/output/fixed-facil-m22.png \
+  --method fixed --threshold 240 --invert true
+
+./build/unix-debug/pdi_lab --operation analyze \
+  --input images/output/fixed-facil-m22.png \
+  --output results/m22/moeda-facil \
+  --connectivity 8 --min-area 0
+
+./build/unix-debug/pdi_lab --operation segment \
+  --input images/input/moeda-dificil.png \
+  --output images/output/fixed-dificil-m22.png \
+  --method fixed --threshold 128 --invert true
+
+./build/unix-debug/pdi_lab --operation analyze \
+  --input images/output/fixed-dificil-m22.png \
+  --output results/m22/moeda-dificil \
+  --connectivity 8 --min-area 0
+```
+
+| Imagem e configuração da máscara | Área total do primeiro plano (pixels) | Componentes brutos — conectividade 4 | Componentes brutos — conectividade 8 |
+|---|---:|---:|---:|
+| moeda-facil, fixed, limiar 240, invertida | 67.430 | 51 | 26 |
+| moeda-dificil, fixed, limiar 128, invertida | 15.206 | 142 | 86 |
+
+Na imagem fácil, as seis moedas visíveis não resultam em seis componentes, a máscara tem 26 componentes com conectividade 8. Na imagem difícil, a contagem é ainda maior (86). Fragmentação de regiões das moedas e elementos da cena selecionados pelo limiar podem contribuir para essa diferença. Portanto, os componentes conectados são regiões da máscara, não uma contagem garantida dos objetos reais.
+
+### 7.3 Itens da M2.2 não realizados
+
+Por limite de tempo, esta entrega parcial não implementa nem avalia uma sequência morfológica. Não foram escolhidas operações, elementos estruturantes, tamanhos ou iterações; também não foram geradas imagens intermediárias/finais após morfologia, CSV final, visualização de rótulos/caixas ou tabela comparativa antes/depois.
+
+## 8. Referencias
 
 Material didático disponibilizado em aula.
 OPENCV. OpenCV documentation. [S. l.]: OpenCV, 2026. Disponível em: https://docs.opencv.org/.

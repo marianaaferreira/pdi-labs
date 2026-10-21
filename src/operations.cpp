@@ -1,19 +1,25 @@
 #include "pdi/operations.hpp"
 
 #include <array>
+#include <cstdint>
+#include <filesystem>
+#include <fstream>
+#include <iomanip>
 #include <iostream>
 #include <string_view>
+#include <opencv2/core.hpp>
 #include <opencv2/imgproc.hpp>
 #include "pdi/errors.hpp"
 #include "pdi/image_io.hpp"
 #include "pdi/parameters.hpp"
+#include "pdi/result_io.hpp"
 
 namespace pdi {
 namespace {
 
 // Lista comum às três linguagens. As atividades complementares/opcionais
 // não fazem parte do contrato mínimo do template.
-constexpr std::array<std::string_view, 19> operations {
+constexpr std::array<std::string_view, 20> operations {
     // M1.1 — representação, canais e níveis de cinza
     "inspect",
     "copy",
@@ -39,8 +45,139 @@ constexpr std::array<std::string_view, 19> operations {
     "sobel",
 
     // M2
-    "segment"
+    "segment",
+    "analyze"
 };
+
+struct ComponentAnalysis {
+    cv::Mat labels;
+    cv::Mat stats;
+    cv::Mat centroids;
+    int component_count = 0;
+    std::uint64_t foreground_area = 0;
+    std::uint64_t kept_area = 0;
+    int kept_count = 0;
+};
+
+ComponentAnalysis analyze_components(const cv::Mat& mask, int connectivity, int min_area){
+    ComponentAnalysis analysis;
+    const int label_count = cv::connectedComponentsWithStats(
+        mask, analysis.labels, analysis.stats, analysis.centroids,
+        connectivity, CV_32S
+    );
+    analysis.component_count = label_count - 1;
+
+    for (int label = 1; label < label_count; ++label) {
+        const int area = analysis.stats.at<int>(label, cv::CC_STAT_AREA);
+        analysis.foreground_area += static_cast<std::uint64_t>(area);
+        if (area >= min_area) {
+            ++analysis.kept_count;
+            analysis.kept_area += static_cast<std::uint64_t>(area);
+        }
+    }
+    return analysis;
+}
+
+void write_components_csv(const std::filesystem::path& path, const ComponentAnalysis& analysis, int min_area){
+    try {
+        ensure_parent_directory(path);
+    } catch (const std::exception& error) {
+        throw PdiError(ExitCode::write_error, "Nao foi possivel preparar o CSV de componentes: " + std::string(error.what()));
+    }
+
+    std::ofstream output(path);
+    if (!output)
+        throw PdiError(ExitCode::write_error, "Nao foi possivel criar o CSV: " + path.string());
+
+    output << "label,area,x,y,width,height,cx,cy,kept\n";
+    output << std::setprecision(10);
+    for (int label = 1; label <= analysis.component_count; ++label) {
+        const int area = analysis.stats.at<int>(label, cv::CC_STAT_AREA);
+        output << label << ','
+               << area << ','
+               << analysis.stats.at<int>(label, cv::CC_STAT_LEFT) << ','
+               << analysis.stats.at<int>(label, cv::CC_STAT_TOP) << ','
+               << analysis.stats.at<int>(label, cv::CC_STAT_WIDTH) << ','
+               << analysis.stats.at<int>(label, cv::CC_STAT_HEIGHT) << ','
+               << analysis.centroids.at<double>(label, 0) << ','
+               << analysis.centroids.at<double>(label, 1) << ','
+               << (area >= min_area ? "true" : "false") << '\n';
+    }
+    if (!output)
+        throw PdiError(ExitCode::write_error, "Falha ao gravar o CSV: " + path.string());
+}
+
+void write_analysis_summary(const std::filesystem::path& path, int connectivity, int min_area, const ComponentAnalysis& analysis4, const ComponentAnalysis& analysis8, const ComponentAnalysis& selected){
+    try {
+        ensure_parent_directory(path);
+    } catch (const std::exception& error) {
+        throw PdiError(ExitCode::write_error, "Nao foi possivel preparar o resumo: " + std::string(error.what()));
+    }
+
+    std::ofstream output(path);
+    if (!output) 
+        throw PdiError(ExitCode::write_error, "Nao foi possivel criar o resumo: " + path.string());
+
+    output << "{\n"
+           << "  \"stage\": \"initial\",\n"
+           << "  \"selected_connectivity\": " << connectivity << ",\n"
+           << "  \"min_area\": " << min_area << ",\n"
+           << "  \"foreground_area_pixels\": " << selected.foreground_area << ",\n"
+           << "  \"filtered_area_pixels\": " << selected.kept_area << ",\n"
+           << "  \"components_connectivity_4_raw\": " << analysis4.component_count << ",\n"
+           << "  \"components_connectivity_4_kept\": " << analysis4.kept_count << ",\n"
+           << "  \"components_connectivity_8_raw\": " << analysis8.component_count << ",\n"
+           << "  \"components_connectivity_8_kept\": " << analysis8.kept_count << "\n"
+           << "}\n";
+    if (!output)
+        throw PdiError(ExitCode::write_error, "Falha ao gravar o resumo: " + path.string());
+}
+
+void analyze_mask(const CliOptions& options, const std::string& input_path, const std::string& output_prefix) {
+    const cv::Mat mask = read_image(input_path);
+
+    if (mask.empty() || mask.type() != CV_8UC1) 
+        throw PdiError(ExitCode::invalid_parameter, "A operacao analyze exige uma mascara de 8 bits e um canal.");
+
+    for (int y = 0; y < mask.rows; ++y)
+        for (int x = 0; x < mask.cols; ++x) {
+            const uchar value = mask.at<uchar>(y, x);
+            if (value != 0 && value != 255) 
+                throw PdiError(ExitCode::invalid_parameter, "A mascara deve conter somente 0 e 255.");
+        }
+
+    int connectivity = 8;
+    if (has_parameter(options, "connectivity"))
+        connectivity = parameter_as_int(options, "connectivity");
+
+    int min_area = 0;
+    if (has_parameter(options, "min-area"))
+        min_area = parameter_as_int(options, "min-area");
+
+    if (connectivity != 4 && connectivity != 8)
+        throw PdiError(ExitCode::invalid_parameter, "A conectividade deve ser 4 ou 8.");
+
+    const ComponentAnalysis analysis4 = analyze_components(mask, 4, min_area);
+    const ComponentAnalysis analysis8 = analyze_components(mask, 8, min_area);
+
+    ComponentAnalysis selected;
+    if (connectivity == 4)
+        selected = analysis4;
+    else
+        selected = analysis8;
+
+    const std::filesystem::path prefix(output_prefix);
+    const std::filesystem::path csv_path(prefix.string() + "_initial.csv");
+    const std::filesystem::path summary_path(prefix.string() + "_summary.json");
+
+    write_components_csv(csv_path, selected, min_area);
+    write_analysis_summary(summary_path, connectivity, min_area, analysis4, analysis8, selected);
+
+    std::cout << "Componentes (conectividade 4): " << analysis4.component_count << " brutos, " << analysis4.kept_count << " mantidos\n";
+    std::cout << "Componentes (conectividade 8): " << analysis8.component_count << " brutos, " << analysis8.kept_count << " mantidos\n";
+    std::cout << "CSV selecionado: " << csv_path.string() << '\n';
+    std::cout << "Resumo: " << summary_path.string() << '\n';
+}
 
 } // namespace
 
@@ -228,6 +365,11 @@ ExitCode run_operation(const CliOptions& options)
         }
         validate_binary_mask(input_image, output_image);
         pdi::write_image(output_path, output_image);
+        return ExitCode::success;
+    }
+
+    if (options.operation == "analyze") {
+        analyze_mask(options, input_path, output_path);
         return ExitCode::success;
     }
 
